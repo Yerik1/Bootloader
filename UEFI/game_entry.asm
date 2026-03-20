@@ -24,6 +24,14 @@ base_y      dw 40
 rand_x      dw 0
 rand_y      dw 0
 
+word_dx     dw 0
+word_dy     dw 0
+
+step_x      dw 0
+step_y      dw 0
+reverse_ord db 0
+order_flip  db 0
+
 ; -----------------------------------------
 ; Constantes de acciones
 ; -----------------------------------------
@@ -162,6 +170,7 @@ game_start_asm:
     mov byte [orientation], 0
     mov byte [flip_h], 0
     mov byte [flip_v], 0
+    mov byte [order_flip], 0
     
     ; posición inicial pseudoaleatoria
     lea rdi, [rel rand_x]
@@ -220,43 +229,43 @@ do_right:
     jmp main_loop
 
 ; Reflejo relativo a pantalla:
-; si orientación es 0 o 180 => toggle flip_v
-; si orientación es 90 o 270 => toggle flip_h
+
 do_up:
     mov al, [orientation]
-    test al, 1
-    jnz .use_h
-
-.use_v:
+    cmp al, 1
+    je .vertical_word
+    mov al, [orientation]
+    cmp al, 3
+    je .vertical_word
     mov al, [flip_v]
     xor al, 1
     mov [flip_v], al
     jmp main_loop
-
-.use_h:
-    mov al, [flip_h]
+    
+.vertical_word:
+    mov al, [order_flip]
     xor al, 1
-    mov [flip_h], al
+    mov [order_flip], al
     jmp main_loop
+
 
 ; Reflejo complementario:
-; si orientación es 0 o 180 => toggle flip_h
-; si orientación es 90 o 270 => toggle flip_v
 do_down:
     mov al, [orientation]
-    test al, 1
-    jnz .use_v
-
-.use_h:
-    mov al, [flip_h]
-    xor al, 1
-    mov [flip_h], al
-    jmp main_loop
-
-.use_v:
+    cmp al, 1
+    je .vertical_word
+    mov al, [orientation]
+    cmp al, 3
+    je .vertical_word
     mov al, [flip_v]
     xor al, 1
     mov [flip_v], al
+    jmp main_loop
+    
+.vertical_word:
+    mov al, [order_flip]
+    xor al, 1
+    mov [order_flip], al
     jmp main_loop
 
 do_restart:
@@ -280,6 +289,7 @@ do_restart:
     mov byte [orientation], 0
     mov byte [flip_h], 0
     mov byte [flip_v], 0
+    mov byte [order_flip], 0
     jmp main_loop
 
 done:
@@ -301,69 +311,240 @@ done:
 draw_names:
     push rbx
     push r12
+    push r13
+    push r14
 
-    ; base línea 1
+    ; -----------------------------------------
+    ; Definir layout de la palabra según orientation
+    ; step_x / step_y = avance entre letras
+    ; word_dx / word_dy = offset entre palabras
+    ; reverse_ord = orden base de las letras
+    ; -----------------------------------------
+    mov al, [orientation]
+    cmp al, 0
+    je .rot0
+    cmp al, 1
+    je .rot90
+    cmp al, 2
+    je .rot180
+    jmp .rot270
+
+.rot0:
+    mov word [step_x], LETTER_ADV
+    mov word [step_y], 0
+    mov word [word_dx], 0
+    mov word [word_dy], LINE_ADV
+    mov byte [reverse_ord], 0
+    jmp .layout_ready
+
+.rot90:
+    mov word [step_x], 0
+    mov word [step_y], LETTER_ADV
+    mov word [word_dx], LINE_ADV
+    mov word [word_dy], 0
+    mov byte [reverse_ord], 0
+    jmp .layout_ready
+
+.rot180:
+    mov word [step_x], LETTER_ADV
+    mov word [step_y], 0
+    mov ax, 0
+    mov [word_dx], ax
+    mov ax, -LINE_ADV
+    mov [word_dy], ax
+    mov byte [reverse_ord], 1
+    jmp .layout_ready
+
+.rot270:
+    mov word [step_x], 0
+    mov word [step_y], LETTER_ADV
+    mov ax, -LINE_ADV
+    mov [word_dx], ax
+    mov ax, 0
+    mov [word_dy], ax
+    mov byte [reverse_ord], 1
+
+.layout_ready:
+    ; -----------------------------------------
+    ; Ajustar reverse_ord por reflexiones
+    ; Si la palabra avanza horizontalmente, flip_h invierte el orden.
+    ; Si la palabra avanza verticalmente, flip_v invierte el orden.
+    ; -----------------------------------------
+    mov al, [orientation]
+    test al, 1
+    jnz .vertical_word
+
+.horizontal_word:
+    mov al, [flip_h]
+    cmp al, 0
+    je .reverse_done
+    mov al, [reverse_ord]
+    xor al, 1
+    mov [reverse_ord], al
+    jmp .reverse_done
+
+.vertical_word:
+    mov al, [flip_v]
+    cmp al, 0
+    je .reverse_done
+    mov al, [reverse_ord]
+    xor al, 1
+    mov [reverse_ord], al
+
+.reverse_done:
+    ; -----------------------------------------
+    ; Ajuste manual del orden de letras
+    ; -----------------------------------------
+    mov al, [order_flip]
+    cmp al, 0
+    je .order_done
+
+    mov al, [reverse_ord]
+    xor al, 1
+    mov [reverse_ord], al
+
+.order_done:
+    ; =========================================
+    ; Primera palabra: YERIK
+    ; =========================================
     xor ebx, ebx
     mov bx, [base_x]
 
     xor r12d, r12d
     mov r12w, [base_y]
 
-    ; -------- YERIK --------
-    lea rsi, [rel bmp_Y]
-    call draw_letter
-    add ebx, LETTER_ADV
+    cmp byte [reverse_ord], 0
+    je .yerik_normal
 
-    lea rsi, [rel bmp_E]
+.yerik_reverse:
+    lea rsi, [rel bmp_K]
     call draw_letter
-    add ebx, LETTER_ADV
-
-    lea rsi, [rel bmp_R]
-    call draw_letter
-    add ebx, LETTER_ADV
+    call advance_pos
 
     lea rsi, [rel bmp_I]
     call draw_letter
-    add ebx, LETTER_ADV
+    call advance_pos
+
+    lea rsi, [rel bmp_R]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_E]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_Y]
+    call draw_letter
+    jmp .next_word
+
+.yerik_normal:
+    lea rsi, [rel bmp_Y]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_E]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_R]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_I]
+    call draw_letter
+    call advance_pos
 
     lea rsi, [rel bmp_K]
     call draw_letter
 
-    ; newline
+.next_word:
+    ; =========================================
+    ; Segunda palabra: GABRIEL
+    ; Offset entre palabras rotado
+    ; =========================================
     mov bx, [base_x]
     mov r12w, [base_y]
-    add r12d, LINE_ADV
 
-    ; -------- GABRIEL --------
-    lea rsi, [rel bmp_G]
-    call draw_letter
-    add ebx, LETTER_ADV
+    mov ax, [word_dx]
+    add bx, ax
 
-    lea rsi, [rel bmp_A]
-    call draw_letter
-    add ebx, LETTER_ADV
+    mov ax, [word_dy]
+    add r12w, ax
 
-    lea rsi, [rel bmp_B]
-    call draw_letter
-    add ebx, LETTER_ADV
+    cmp byte [reverse_ord], 0
+    je .gabriel_normal
 
-    lea rsi, [rel bmp_R]
+.gabriel_reverse:
+    lea rsi, [rel bmp_L]
     call draw_letter
-    add ebx, LETTER_ADV
-
-    lea rsi, [rel bmp_I]
-    call draw_letter
-    add ebx, LETTER_ADV
+    call advance_pos
 
     lea rsi, [rel bmp_E]
     call draw_letter
-    add ebx, LETTER_ADV
+    call advance_pos
+
+    lea rsi, [rel bmp_I]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_R]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_B]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_A]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_G]
+    call draw_letter
+    jmp .done
+
+.gabriel_normal:
+    lea rsi, [rel bmp_G]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_A]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_B]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_R]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_I]
+    call draw_letter
+    call advance_pos
+
+    lea rsi, [rel bmp_E]
+    call draw_letter
+    call advance_pos
 
     lea rsi, [rel bmp_L]
     call draw_letter
 
+.done:
+    pop r14
+    pop r13
     pop r12
     pop rbx
+    ret
+
+
+advance_pos:
+    mov ax, [step_x]
+    add bx, ax
+
+    mov ax, [step_y]
+    add r12w, ax
     ret
 
 ; =========================================================
