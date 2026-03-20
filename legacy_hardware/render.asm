@@ -24,6 +24,11 @@ msg_names       db 'Nombres: Yerik y Gabriel', 0
 
 base_x          dw 0
 base_y          dw 0
+step_x      dw 0
+step_y      dw 0
+word_dx     dw 0
+word_dy     dw 0
+reverse_ord db 0
 curr_x          dw 0
 curr_y          dw 0
 row_idx         db 0
@@ -244,16 +249,126 @@ draw_names_bitmap:
     xor ax, ax
     mov al, [name_col]
     mov [base_x], ax
-    mov [curr_x], ax
 
     xor ax, ax
     mov al, [name_row]
     mov [base_y], ax
+
+    ; -----------------------------------------
+    ; Definir layout según orientation
+    ; -----------------------------------------
+    mov al, [orientation]
+    cmp al, ROT_0
+    je .rot0
+    cmp al, ROT_90
+    je .rot90
+    cmp al, ROT_180
+    je .rot180
+    jmp .rot270
+
+.rot0:
+    mov word [step_x], LETTER_ADV
+    mov word [step_y], 0
+    mov word [word_dx], 0
+    mov word [word_dy], 24
+    mov byte [reverse_ord], 0
+    jmp .layout_ready
+
+.rot90:
+    mov word [step_x], 0
+    mov word [step_y], LETTER_ADV
+    mov word [word_dx], 24
+    mov word [word_dy], 0
+    mov byte [reverse_ord], 0
+    jmp .layout_ready
+
+.rot180:
+    mov word [step_x], LETTER_ADV
+    mov word [step_y], 0
+    mov word [word_dx], 0
+    mov ax, -24
+    mov [word_dy], ax
+    mov byte [reverse_ord], 1
+    jmp .layout_ready
+
+.rot270:
+    mov word [step_x], 0
+    mov word [step_y], LETTER_ADV
+    mov ax, -24
+    mov [word_dx], ax
+    mov word [word_dy], 0
+    mov byte [reverse_ord], 1
+
+.layout_ready:
+    ; -----------------------------------------
+    ; Ajuste por reflejos
+    ; -----------------------------------------
+    mov al, [orientation]
+    test al, 1
+    jnz .vertical_word
+
+.horizontal_word:
+    mov al, [flip_h]
+    cmp al, 0
+    je .reverse_done
+    mov al, [reverse_ord]
+    xor al, 1
+    mov [reverse_ord], al
+    jmp .reverse_done
+
+.vertical_word:
+    mov al, [flip_v]
+    cmp al, 0
+    je .reverse_done
+    mov al, [reverse_ord]
+    xor al, 1
+    mov [reverse_ord], al
+
+.reverse_done:
+    ; -----------------------------------------
+    ; Ajuste manual del orden
+    ; -----------------------------------------
+    mov al, [order_flip]
+    cmp al, 0
+    je .order_done
+    mov al, [reverse_ord]
+    xor al, 1
+    mov [reverse_ord], al
+
+.order_done:
+    ; =========================================
+    ; Primera palabra: YERIK
+    ; =========================================
+    mov ax, [base_x]
+    mov [curr_x], ax
+    mov ax, [base_y]
     mov [curr_y], ax
 
-    ; -------------------------
-    ; Primera línea: YERIK
-    ; -------------------------
+    cmp byte [reverse_ord], 0
+    je .yerik_normal
+
+.yerik_reverse:
+    mov si, bmp_K
+    call draw_letter_current
+    call advance_letter
+
+    mov si, bmp_I
+    call draw_letter_current
+    call advance_letter
+
+    mov si, bmp_R
+    call draw_letter_current
+    call advance_letter
+
+    mov si, bmp_E
+    call draw_letter_current
+    call advance_letter
+
+    mov si, bmp_Y
+    call draw_letter_current
+    jmp .next_word
+
+.yerik_normal:
     mov si, bmp_Y
     call draw_letter_current
     call advance_letter
@@ -273,21 +388,51 @@ draw_names_bitmap:
     mov si, bmp_K
     call draw_letter_current
 
-    ; -------------------------
-    ; "newline"
-    ; curr_x = base_x
-    ; curr_y += separación vertical
-    ; -------------------------
+.next_word:
+    ; =========================================
+    ; Segunda palabra: GABRIEL
+    ; =========================================
     mov ax, [base_x]
+    add ax, [word_dx]
     mov [curr_x], ax
 
     mov ax, [base_y]
-    add ax, 24              ; 16 px alto + margen
+    add ax, [word_dy]
     mov [curr_y], ax
 
-    ; -------------------------
-    ; Segunda línea: GABRIEL
-    ; -------------------------
+    cmp byte [reverse_ord], 0
+    je .gabriel_normal
+
+.gabriel_reverse:
+    mov si, bmp_L
+    call draw_letter_current
+    call advance_letter
+
+    mov si, bmp_E
+    call draw_letter_current
+    call advance_letter
+
+    mov si, bmp_I
+    call draw_letter_current
+    call advance_letter
+
+    mov si, bmp_R
+    call draw_letter_current
+    call advance_letter
+
+    mov si, bmp_B
+    call draw_letter_current
+    call advance_letter
+
+    mov si, bmp_A
+    call draw_letter_current
+    call advance_letter
+
+    mov si, bmp_G
+    call draw_letter_current
+    jmp .done
+
+.gabriel_normal:
     mov si, bmp_G
     call draw_letter_current
     call advance_letter
@@ -315,10 +460,17 @@ draw_names_bitmap:
     mov si, bmp_L
     call draw_letter_current
 
+.done:
     ret
 
 advance_letter:
-    add word [curr_x], LETTER_ADV
+    mov ax, [curr_x]
+    add ax, [step_x]
+    mov [curr_x], ax
+
+    mov ax, [curr_y]
+    add ax, [step_y]
+    mov [curr_y], ax
     ret
 
 ; =========================================================

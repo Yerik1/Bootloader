@@ -38,6 +38,7 @@ name_row        db 60
 name_col        db 30
 flip_h  db 0
 flip_v  db 0
+order_flip  db 0
 
 game_start:
     call game_init
@@ -56,7 +57,7 @@ main_loop:
 
 game_init:
     mov byte [game_state], STATE_CONFIRM
-    mov byte [orientation], ORIENT_NORMAL
+    mov byte [orientation], ROT_0
     call set_mode_text
     call clear_screen_text
     call draw_confirm_screen
@@ -75,7 +76,10 @@ confirm_loop:
 
 start_game:
     call randomize_position
-    mov byte [orientation], ORIENT_NORMAL
+    mov byte [orientation], ROT_0
+    mov byte [flip_h], 0
+    mov byte [flip_v], 0
+    mov byte [order_flip], 0
     mov byte [game_state], STATE_RUNNING
 
     call set_mode_13h
@@ -135,41 +139,43 @@ do_right:
 
 do_up:
     mov al, [orientation]
-    test al, 1
-    jnz .use_h
+    cmp al, 1
+    je .vertical_word
+    cmp al, 3
+    je .vertical_word
 
-.use_v:
     mov al, [flip_v]
     xor al, 1
     mov [flip_v], al
     jmp .redraw
-
-.use_h:
-    mov al, [flip_h]
+    
+.vertical_word:
+    mov al, [order_flip]
     xor al, 1
-    mov [flip_h], al
+    mov [order_flip], al
 
 .redraw:
     call clear_screen_vga
     call draw_game_screen
     call draw_names_bitmap
     jmp running_loop
-
+    
 do_down:
     mov al, [orientation]
-    test al, 1
-    jnz .use_h
+    cmp al, 1
+    je .vertical_word
+    cmp al, 3
+    je .vertical_word
 
-.use_v:
-    mov al, [flip_v]
-    xor al, 1
-    mov [flip_v], al
-    jmp .redraw
-
-.use_h:
     mov al, [flip_h]
     xor al, 1
     mov [flip_h], al
+    jmp .redraw
+    
+.vertical_word:
+    mov al, [order_flip]
+    xor al, 1
+    mov [order_flip], al
 
 .redraw:
     call clear_screen_vga
@@ -182,6 +188,7 @@ do_restart:
     mov byte [orientation], ROT_0
     mov byte [flip_h], 0
     mov byte [flip_v], 0
+    mov byte [order_flip], 0
     call clear_screen_vga
     call draw_game_screen
     call draw_names_bitmap

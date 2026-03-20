@@ -69,7 +69,7 @@ msg_noext  db 13,10,'BIOS sin INT13h extensions.',13,10,0
 dap_packet:
     db 10h
     db 00h
-    dw 3
+    dw 4
     dw 7E00h
     dw 0000h
     dq 1
@@ -81,7 +81,7 @@ times 446-($-$$) db 0
     db 0Eh
     db 0FFh, 0FFh, 0FFh
     dd 1
-    dd 4
+    dd 5
 
 times 16*3 db 0
 
