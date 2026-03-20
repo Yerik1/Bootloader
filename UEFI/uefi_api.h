@@ -14,14 +14,33 @@ typedef enum {
     ACT_RESTART
 } GAME_ACTION;
 
+/* ------------------------------------------------------------
+   Video / GOP (Graphics Output Protocol)
+   ------------------------------------------------------------
+   SystemTable es una estructura clave que UEFI entrega al entrar
+   a la aplicación. Desde ahí se accede a BootServices y otros
+   protocolos como el GOP.
+   ------------------------------------------------------------ */
+   
 EFI_STATUS uefi_init_gop(EFI_SYSTEM_TABLE *SystemTable);
 
+/* Limpia toda la pantalla con un color RGB de 24 bits. */
 void uefi_clear_screen(UINT32 color);
+
+/* Dibuja un bloque cuadrado en (x, y) de lado "size". */
 void uefi_draw_block(UINT32 x, UINT32 y, UINT32 size, UINT32 color);
 
+/* ------------------------------------------------------------
+   Entrada / teclado
+   ------------------------------------------------------------ */
 UINT32 uefi_read_action(void);
 void uefi_wait_key(void);
 
+/* ------------------------------------------------------------
+   Aleatoriedad
+   ------------------------------------------------------------
+   Estas funciones administran un generador pseudoaleatorio.
+   ------------------------------------------------------------ */
 void uefi_random_init(EFI_SYSTEM_TABLE *SystemTable);
 void uefi_random_stir(UINT32 value);
 UINT16 uefi_random16(void);
